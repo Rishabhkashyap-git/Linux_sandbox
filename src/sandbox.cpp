@@ -1,4 +1,6 @@
 #include "../include/sandbox.h"
+#include <cstdlib>
+#include "../include/filesystem.h"
 #include <sched.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -13,6 +15,12 @@ static int child_main(void* arg) {
     const Config* cfg = static_cast<const Config*>(arg);
 
     if (sethostname("sandbox", 7) != 0) { perror("sethostname"); return 1; }
+
+    if (!setup_filesystem(cfg->rootfs)) return 1;
+    clearenv();
+    setenv("PATH", "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", 1);
+    setenv("HOME", "/", 1);
+
     std::cout << "[child] my PID inside the sandbox: " << getpid() << "\n"
               << std::flush;
     std::vector<char*> argv;
