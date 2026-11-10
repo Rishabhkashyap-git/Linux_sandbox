@@ -55,7 +55,36 @@ static const char* EXTRA[] = {
     "inotify_rm_watch","rt_sigpending","rt_sigtimedwait","epoll_pwait2",
     "setuid","setgid","setreuid","setregid","setresuid","setresgid","setgroups",
 };
+static const char* EXTRA2[] = {
+    // limits, caps (can only be lowered without privileges), identity
+    "setrlimit","capset","setpriority","sched_setaffinity","sched_rr_get_interval",
+    // newer file/process APIs that current libc versions use
+    "openat2","fchmodat2","pidfd_open","pidfd_send_signal","memfd_create",
+    "futex_waitv","futex_wake","futex_wait","futex_requeue","cachestat",
+    "mlock2","mlockall","munlockall","membarrier",
+    "pkey_alloc","pkey_free","pkey_mprotect",
+    // extended attributes (tar, cp -a), FIFOs (no CAP_MKNOD, so no device nodes)
+    "setxattr","lsetxattr","fsetxattr","removexattr","lremovexattr","fremovexattr",
+    "mknod","mknodat",
+    // SysV IPC: isolated by the IPC namespace
+    "shmget","shmat","shmctl","shmdt","semget","semop","semctl","semtimedop",
+    "msgget","msgsnd","msgrcv","msgctl",
+    // local-only socket pair (no network access)
+    "socketpair",
+};
 
+static const char* DENIED[] = {
+    "mount","umount2","pivot_root","chroot","move_mount","open_tree","fsopen",
+    "fsmount","fsconfig","fspick","mount_setattr",
+    "ptrace","process_vm_readv","process_vm_writev","kcmp",
+    "unshare","setns","bpf","userfaultfd","perf_event_open",
+    "keyctl","add_key","request_key",
+    "reboot","kexec_load","kexec_file_load","init_module","finit_module",
+    "delete_module","swapon","swapoff","acct","quotactl","syslog",
+    "settimeofday","clock_settime","clock_adjtime","adjtimex",
+    "sethostname","setdomainname","iopl","ioperm","personality",
+    "open_by_handle_at","name_to_handle_at","lookup_dcookie",
+};
 static const char* NETWORK[] = {
     "socket","connect","bind","listen","accept","accept4","sendto","recvfrom",
     "sendmsg","recvmsg","sendmmsg","recvmmsg","shutdown","getsockname",
@@ -63,7 +92,7 @@ static const char* NETWORK[] = {
 };
 
 bool install_seccomp(const Config& cfg) {
-    scmp_filter_ctx ctx = seccomp_init(SCMP_ACT_KILL_PROCESS);
+    scmp_filter_ctx ctx = seccomp_init(SCMP_ACT_ERRNO(EPERM));
     if (!ctx) { fprintf(stderr, "seccomp_init failed\n"); return false; }
 
     auto allow = [&](const char* name) {
@@ -75,6 +104,12 @@ bool install_seccomp(const Config& cfg) {
     bool ok = true;
     for (const char* name : ALLOWED) ok = allow(name) && ok;
     for (const char* name : EXTRA)   ok = allow(name) && ok;
+    for (const char* name : EXTRA2) ok = allow(name) && ok;
+    for (const char* name : DENIED) {
+        int nr = seccomp_syscall_resolve_name(name);
+        if (nr < 0) continue;
+        ok = (seccomp_rule_add(ctx, SCMP_ACT_KILL_PROCESS, nr, 0) == 0) && ok;
+    }
     if (cfg.allow_net) for (const char* name : NETWORK) ok = allow(name) && ok;
 
     const unsigned long NS_FLAGS = CLONE_NEWNS | CLONE_NEWCGROUP | CLONE_NEWUTS |
