@@ -25,9 +25,10 @@ cgroups v2, capabilities and seccomp-bpf.
 - Tested on: Ubuntu 26.04 LTS
 
 ## Quick start
-    git clone https://github.com/<your-username>/Linux_sandbox
+    git clone https://github.com/Rishabhkashyap-git/Linux_sandbox.git
     cd Linux_sandbox
     sudo apt install -y build-essential libseccomp-dev curl
+    chmod +x ./scripts/setup_rootfs.sh
     ./scripts/setup_rootfs.sh     # downloads Alpine into ./alpine (not part of the repo)
     make
     sudo ./sandbox --rootfs ./alpine -- /bin/ls /
