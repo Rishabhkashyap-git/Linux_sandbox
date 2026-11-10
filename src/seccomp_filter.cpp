@@ -53,6 +53,7 @@ static const char* EXTRA[] = {
     "timer_settime","timer_gettime","timer_getoverrun","timer_delete",
     "signalfd","signalfd4","inotify_init","inotify_init1","inotify_add_watch",
     "inotify_rm_watch","rt_sigpending","rt_sigtimedwait","epoll_pwait2",
+    "setuid","setgid","setreuid","setregid","setresuid","setresgid","setgroups",
 };
 
 static const char* NETWORK[] = {
