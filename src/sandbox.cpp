@@ -1,6 +1,8 @@
 #include "../include/sandbox.h"
 #include "../include/cgroup.h"
 #include "../include/filesystem.h"
+#include "../include/caps.h"
+#include "../include/seccomp_filter.h"
 #include <sched.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -14,13 +16,12 @@
 
 static const size_t STACK_SIZE = 1024 * 1024;
 
-struct ChildArgs { const Config* cfg; int sync_r; int sync_w; };   // NEW
+struct ChildArgs { const Config* cfg; int sync_r; int sync_w; }; 
 
 static int child_main(void* arg) {
     auto* a = static_cast<ChildArgs*>(arg);
     const Config* cfg = a->cfg;
 
-    // NEW: wait until the parent has put us in the cgroup.
     close(a->sync_w);
     char go = 0;
     if (read(a->sync_r, &go, 1) != 1 || go != 'G') return 1;
@@ -29,7 +30,6 @@ static int child_main(void* arg) {
     if (sethostname("sandbox", 7) != 0) { perror("sethostname"); return 1; }
     if (!setup_filesystem(cfg->rootfs)) return 1;
 
-    // NEW: CPU-time limit (soft = SIGXCPU warning, hard = SIGKILL).
     struct rlimit rl = { (rlim_t)cfg->cpu_seconds, (rlim_t)cfg->cpu_seconds + 1 };
     if (setrlimit(RLIMIT_CPU, &rl) != 0) { perror("setrlimit"); return 1; }
 
@@ -42,16 +42,19 @@ static int child_main(void* arg) {
     for (const auto& s : cfg->args) argv.push_back(const_cast<char*>(s.c_str()));
     argv.push_back(nullptr);
 
+    if (!drop_privileges()) return 1;
+    if (!install_seccomp(*cfg)) return 1; 
+
     execvp(argv[0], argv.data());
     perror("execvp");
     return 127;
 }
 
 int run_sandbox(const Config& cfg) {
-    Cgroup cg;                                                    // NEW
+    Cgroup cg;                                                 
     if (!cg.create(cfg)) return 1;
 
-    int fds[2];                                                   // NEW
+    int fds[2];                                              
     if (pipe(fds) != 0) { perror("pipe"); cg.destroy(); return 1; }
 
     std::vector<char> stack(STACK_SIZE);
@@ -63,7 +66,7 @@ int run_sandbox(const Config& cfg) {
     if (pid < 0) { perror("clone"); cg.destroy(); return 1; }
     close(fds[0]);
 
-    // NEW: put the child in the cgroup, THEN tell it to go.
+
     if (!cg.add_process(pid)) {
         kill(pid, SIGKILL); waitpid(pid, nullptr, 0); cg.destroy(); return 1;
     }
@@ -81,7 +84,7 @@ int run_sandbox(const Config& cfg) {
                         std::chrono::steady_clock::now() - start).count();
         if (secs >= cfg.wall_seconds) {
             timed_out = true;
-            cg.kill_all();                       // NEW: kills every process inside
+            cg.kill_all();                       
             kill(pid, SIGKILL);
             waitpid(pid, &status, 0);
             break;
@@ -96,7 +99,6 @@ int run_sandbox(const Config& cfg) {
     else if (WIFSIGNALED(status)) { code = 128 + WTERMSIG(status);
                                   std::cout << "[result] killed by signal " << WTERMSIG(status) << "\n"; }
 
-    // NEW: read stats BEFORE destroying the cgroup.
     std::cout << "[stats] peak memory: " << cg.peak_memory() / 1024 << " KB, "
               << "CPU: " << cg.cpu_usec() / 1000 << " ms, "
               << "OOM kills: " << cg.oom_kills() << "\n";

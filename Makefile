@@ -1,3 +1,4 @@
+LDFLAGS = -lseccomp
 CXX      = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
 SRC      = $(wildcard src/*.cpp)
