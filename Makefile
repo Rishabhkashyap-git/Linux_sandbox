@@ -13,3 +13,6 @@ build/%.o: src/%.cpp
 
 clean:
 	rm -rf build sandbox
+.PHONY: test
+test: sandbox
+	sudo ./tests/run_tests.sh
