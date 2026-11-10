@@ -38,6 +38,22 @@ static const char* ALLOWED[] = {
     "set_robust_list","get_robust_list","rseq","arch_prctl","prctl","getrandom",
     "restart_syscall",
 };
+static const char* EXTRA[] = {
+    // ownership, xattrs, extra file ops
+    "chown","fchown","lchown","fchownat","getxattr","lgetxattr","fgetxattr",
+    "listxattr","llistxattr","flistxattr","fallocate","fadvise64",
+    "copy_file_range","splice","tee","msync","mincore","mlock","munlock",
+    "preadv2","pwritev2","sync","syncfs",
+    // identity and scheduling info (read-only)
+    "capget","getresuid","getresgid","getpriority","setpriority",
+    "sched_getparam","sched_getscheduler","sched_get_priority_max",
+    "sched_get_priority_min",
+    // timers, signals, event fds (used by many runtimes)
+    "timerfd_create","timerfd_settime","timerfd_gettime","timer_create",
+    "timer_settime","timer_gettime","timer_getoverrun","timer_delete",
+    "signalfd","signalfd4","inotify_init","inotify_init1","inotify_add_watch",
+    "inotify_rm_watch","rt_sigpending","rt_sigtimedwait","epoll_pwait2",
+};
 
 static const char* NETWORK[] = {
     "socket","connect","bind","listen","accept","accept4","sendto","recvfrom",
@@ -57,6 +73,7 @@ bool install_seccomp(const Config& cfg) {
 
     bool ok = true;
     for (const char* name : ALLOWED) ok = allow(name) && ok;
+    for (const char* name : EXTRA)   ok = allow(name) && ok;
     if (cfg.allow_net) for (const char* name : NETWORK) ok = allow(name) && ok;
 
     const unsigned long NS_FLAGS = CLONE_NEWNS | CLONE_NEWCGROUP | CLONE_NEWUTS |
