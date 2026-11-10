@@ -3,6 +3,7 @@
 #include "../include/filesystem.h"
 #include "../include/caps.h"
 #include "../include/seccomp_filter.h"
+#include "../include/verdict.h"
 #include <sched.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -91,17 +92,21 @@ int run_sandbox(const Config& cfg) {
         }
         usleep(50000);
     }
+        auto end = std::chrono::steady_clock::now();
 
-    int code = 0;
-    if (timed_out)                std::cout << "[result] wall-clock limit exceeded\n";
-    else if (WIFEXITED(status)) { code = WEXITSTATUS(status);
-                                  std::cout << "[result] exited with code " << code << "\n"; }
-    else if (WIFSIGNALED(status)) { code = 128 + WTERMSIG(status);
-                                  std::cout << "[result] killed by signal " << WTERMSIG(status) << "\n"; }
+    RunResult r;
+    r.timed_out = timed_out;
+    r.wall_ms   = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    if (WIFEXITED(status))   { r.exited = true; r.exit_code = WEXITSTATUS(status); }
+    if (WIFSIGNALED(status)) { r.term_signal = WTERMSIG(status); }
 
-    std::cout << "[stats] peak memory: " << cg.peak_memory() / 1024 << " KB, "
-              << "CPU: " << cg.cpu_usec() / 1000 << " ms, "
-              << "OOM kills: " << cg.oom_kills() << "\n";
+    r.cpu_ms    = cg.cpu_usec() / 1000;
+    r.peak_kb   = cg.peak_memory() / 1024;
+    r.oom_kills = cg.oom_kills();
+    r.pids_hits = cg.pids_hits();
     cg.destroy();
-    return code;
+
+    classify(r, cfg);
+    print_report(r, cfg);
+    return exit_code_for(r);
 }

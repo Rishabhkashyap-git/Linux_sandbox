@@ -1,4 +1,4 @@
-#include "seccomp_filter.h"
+#include "../include/seccomp_filter.h"
 #include <seccomp.h>
 #include <sched.h>
 #include <sys/ioctl.h>

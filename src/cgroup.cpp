@@ -62,7 +62,7 @@ uint64_t Cgroup::peak_memory() const {
 }
 uint64_t Cgroup::oom_kills() const   { return read_key(path_ + "/memory.events", "oom_kill"); }
 uint64_t Cgroup::cpu_usec() const    { return read_key(path_ + "/cpu.stat", "usage_usec"); }
-
+uint64_t Cgroup::pids_hits() const { return read_key(path_ + "/pids.events", "max"); }
 void Cgroup::destroy() {
     if (path_.empty()) return;
     kill_all();

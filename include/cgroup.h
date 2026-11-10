@@ -11,7 +11,8 @@ public:
     void kill_all();                 
     uint64_t peak_memory() const;    
     uint64_t oom_kills() const;      
-    uint64_t cpu_usec() const;        
+    uint64_t cpu_usec() const;
+    uint64_t pids_hits() const;        
     void destroy();                  
 private:
     std::string path_;
